@@ -19,6 +19,7 @@ import { createEmptyDefinition } from '@/lib/form-builder/types'
 import { FieldPalette } from '@/components/builder/field-palette'
 import { PageTabs } from '@/components/builder/page-tabs'
 import { Canvas } from '@/components/builder/canvas'
+import { FieldSettings } from '@/components/builder/field-settings'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
@@ -205,15 +206,8 @@ function BuilderShell({ form }: { form: FormData }) {
             <Canvas />
           </div>
 
-          {/* Right: Settings placeholder */}
-          <aside className="w-72 border-l bg-muted/20 p-4 overflow-y-auto">
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
-              Field Settings
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Select a field to edit its settings
-            </p>
-          </aside>
+          {/* Right: Field Settings */}
+          <FieldSettings />
         </div>
       </div>
 

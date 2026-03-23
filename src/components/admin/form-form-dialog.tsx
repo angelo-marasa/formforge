@@ -16,14 +16,15 @@ interface Client { id: string; name: string }
 
 interface FormFormDialogProps {
   form?: { id: string; name: string; slug: string; clientId: string; confirmationRedirectUrl: string | null; webhooks: string | null }
+  defaultClientId?: string
   trigger: React.ReactNode
   onSave: () => void
 }
 
-export function FormFormDialog({ form, trigger, onSave }: FormFormDialogProps) {
+export function FormFormDialog({ form, defaultClientId, trigger, onSave }: FormFormDialogProps) {
   const [open, setOpen] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
-  const [clientId, setClientId] = useState(form?.clientId || '')
+  const [clientId, setClientId] = useState(form?.clientId || defaultClientId || '')
   const [name, setName] = useState(form?.name || '')
   const [slug, setSlug] = useState(form?.slug || '')
   const [redirectUrl, setRedirectUrl] = useState(form?.confirmationRedirectUrl || '')
@@ -73,7 +74,7 @@ export function FormFormDialog({ form, trigger, onSave }: FormFormDialogProps) {
           <DialogTitle>{isEdit ? 'Edit Form' : 'New Form'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isEdit && (
+          {!isEdit && !defaultClientId && (
             <div>
               <Label htmlFor="clientId">Client</Label>
               <select

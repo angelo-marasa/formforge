@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { TopBar } from '@/components/admin/top-bar'
 import { Button } from '@/components/ui/button'
 import { ClientFormDialog } from '@/components/admin/client-form-dialog'
@@ -50,7 +51,11 @@ export default function ClientsPage() {
             <tbody>
               {clients.map((c) => (
                 <tr key={c.id} className="border-b last:border-0">
-                  <td className="p-3 font-medium">{c.name}</td>
+                  <td className="p-3 font-medium">
+                    <Link href={`/admin/clients/${c.id}`} className="hover:underline">
+                      {c.name}
+                    </Link>
+                  </td>
                   <td className="p-3 text-muted-foreground">{c.slug}</td>
                   <td className="p-3 text-right space-x-2">
                     <ClientFormDialog

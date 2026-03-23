@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getFormByEmbedKey } from '@/lib/db/queries/forms'
+import { getClient } from '@/lib/db/queries/clients'
 import { createSubmission } from '@/lib/db/queries/submissions'
+import { dispatchWebhooks } from '@/lib/webhooks/dispatcher'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +36,39 @@ export async function POST(req: Request) {
   // Create submission log entry (no field data stored)
   const submissionId = await createSubmission(form.id)
 
-  // TODO: Phase 5 - dispatch webhooks here with the field data
+  // Resolve webhook URLs: form-level first, then client defaults
+  let webhookUrls: string[] = []
+  if (form.webhooks) {
+    try {
+      webhookUrls = JSON.parse(form.webhooks)
+    } catch { /* invalid JSON, skip */ }
+  }
+
+  if (webhookUrls.length === 0) {
+    const client = await getClient(form.clientId)
+    if (client?.webhookDefaults) {
+      try {
+        webhookUrls = JSON.parse(client.webhookDefaults)
+      } catch { /* invalid JSON, skip */ }
+    }
+  }
+
+  // Dispatch webhooks with inline retry (fire-and-forget, don't block response)
+  if (webhookUrls.length > 0) {
+    const client = await getClient(form.clientId)
+    const payload = {
+      form_id: form.id,
+      form_name: form.name,
+      client: client?.slug ?? form.clientId,
+      submitted_at: new Date().toISOString(),
+      fields,
+    }
+
+    // Don't await - dispatch in background so the submitter gets a fast response
+    dispatchWebhooks(submissionId, webhookUrls, payload).catch((err) => {
+      console.error('Webhook dispatch error:', err)
+    })
+  }
 
   // Return redirect URL
   return NextResponse.json({

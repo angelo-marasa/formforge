@@ -124,8 +124,8 @@
 
   // ── Condition evaluation ──────────────────────────────────────────────
   function evalConditions(conditions, fieldValues) {
-    var hidden = {};
-    if (!conditions || !conditions.length) return hidden;
+    var result = { hidden: {}, setValues: {}, skipToPage: null };
+    if (!conditions || !conditions.length) return result;
 
     for (var c = 0; c < conditions.length; c++) {
       var cond = conditions[c];
@@ -153,11 +153,17 @@
 
       for (var a = 0; a < cond.actions.length; a++) {
         var action = cond.actions[a];
-        if (action.type === 'hide' && pass && action.targetFieldId) hidden[action.targetFieldId] = true;
-        if (action.type === 'show' && !pass && action.targetFieldId) hidden[action.targetFieldId] = true;
+        if (action.type === 'hide' && pass && action.targetFieldId) result.hidden[action.targetFieldId] = true;
+        if (action.type === 'show' && !pass && action.targetFieldId) result.hidden[action.targetFieldId] = true;
+        if (action.type === 'setValue' && pass && action.targetFieldId) {
+          result.setValues[action.targetFieldId] = action.value !== undefined ? action.value : '';
+        }
+        if (action.type === 'skipToPage' && pass && action.targetPageIndex !== undefined) {
+          result.skipToPage = action.targetPageIndex;
+        }
       }
     }
-    return hidden;
+    return result;
   }
 
   // ── Form renderer ─────────────────────────────────────────────────────
@@ -234,7 +240,15 @@
       wrapper.appendChild(el('div', { className: 'ff-page-title' }, page.title));
     }
 
-    var hidden = evalConditions(def.conditions, this.fieldValues);
+    var condResult = evalConditions(def.conditions, this.fieldValues);
+    var hidden = condResult.hidden;
+
+    // Apply setValue actions
+    for (var svId in condResult.setValues) {
+      if (this.fieldValues[svId] !== condResult.setValues[svId]) {
+        this.fieldValues[svId] = condResult.setValues[svId];
+      }
+    }
 
     // Render rows
     for (var r = 0; r < page.rows.length; r++) {
@@ -334,7 +348,7 @@
           id: 'ff-' + fieldId,
           name: fieldId,
           placeholder: field.placeholder || '',
-          onInput: function(e) { self.fieldValues[fieldId] = e.target.value; self.clearError(fieldId); }
+          onInput: function(e) { self.fieldValues[fieldId] = e.target.value; self.onFieldChange(fieldId); }
         });
         if (this.fieldValues[fieldId]) inputEl.value = this.fieldValues[fieldId];
         container.appendChild(inputEl);
@@ -345,7 +359,7 @@
           className: 'ff-select' + errorClass,
           id: 'ff-' + fieldId,
           name: fieldId,
-          onChange: function(e) { self.fieldValues[fieldId] = e.target.value; self.clearError(fieldId); }
+          onChange: function(e) { self.fieldValues[fieldId] = e.target.value; self.onFieldChange(fieldId); }
         });
         inputEl.appendChild(el('option', { value: '' }, field.placeholder || 'Select...'));
         if (field.options) {
@@ -370,7 +384,7 @@
               if (e.target.options[j].selected) vals.push(e.target.options[j].value);
             }
             self.fieldValues[fieldId] = vals;
-            self.clearError(fieldId);
+            self.onFieldChange(fieldId);
           }
         });
         var selected = this.fieldValues[fieldId] || [];
@@ -397,7 +411,7 @@
               if (self.fieldValues[fieldId] === opt.value) radio.checked = true;
               radio.addEventListener('change', function() {
                 self.fieldValues[fieldId] = opt.value;
-                self.clearError(fieldId);
+                self.onFieldChange(fieldId);
               });
               radioGroup.appendChild(el('label', { className: 'ff-radio-label' }, [radio, opt.label]));
             })(field.options[r]);
@@ -426,7 +440,7 @@
                   arr = arr.filter(function(v) { return v !== opt.value; });
                 }
                 self.fieldValues[fieldId] = arr;
-                self.clearError(fieldId);
+                self.onFieldChange(fieldId);
               });
               cbGroup.appendChild(el('label', { className: 'ff-checkbox-label' }, [checkbox, opt.label]));
             })(field.options[cb]);
@@ -443,7 +457,7 @@
           name: fieldId,
           onChange: function(e) {
             self.fieldValues[fieldId] = e.target.files && e.target.files[0] ? e.target.files[0].name : '';
-            self.clearError(fieldId);
+            self.onFieldChange(fieldId);
           }
         });
         container.appendChild(inputEl);
@@ -456,7 +470,7 @@
           id: 'ff-' + fieldId,
           name: fieldId,
           value: this.fieldValues[fieldId] || '',
-          onInput: function(e) { self.fieldValues[fieldId] = e.target.value; self.clearError(fieldId); }
+          onInput: function(e) { self.fieldValues[fieldId] = e.target.value; self.onFieldChange(fieldId); }
         });
         container.appendChild(inputEl);
         break;
@@ -475,7 +489,7 @@
           name: fieldId,
           placeholder: field.placeholder || '',
           value: this.fieldValues[fieldId] || '',
-          onInput: function(e) { self.fieldValues[fieldId] = e.target.value; self.clearError(fieldId); }
+          onInput: function(e) { self.fieldValues[fieldId] = e.target.value; self.onFieldChange(fieldId); }
         });
         container.appendChild(inputEl);
         break;
@@ -501,10 +515,19 @@
     }
   };
 
+  FormForge.prototype.onFieldChange = function(fieldId) {
+    this.clearError(fieldId);
+    // Re-evaluate conditions and re-render if visibility changed
+    if (this.data && this.data.definition && this.data.definition.conditions && this.data.definition.conditions.length) {
+      this.render();
+    }
+  };
+
   FormForge.prototype.validateCurrentPage = function() {
     var def = this.data.definition;
     var page = def.pages[this.currentPage];
-    var hidden = evalConditions(def.conditions, this.fieldValues);
+    var condResult = evalConditions(def.conditions, this.fieldValues);
+    var hidden = condResult.hidden;
     var valid = true;
     this.fieldErrors = {};
 
@@ -536,7 +559,13 @@
 
   FormForge.prototype.nextPage = function() {
     if (!this.validateCurrentPage()) return;
-    this.currentPage++;
+    var def = this.data.definition;
+    var condResult = evalConditions(def.conditions, this.fieldValues);
+    if (condResult.skipToPage !== null && condResult.skipToPage >= 0 && condResult.skipToPage < def.pages.length) {
+      this.currentPage = condResult.skipToPage;
+    } else {
+      this.currentPage++;
+    }
     this.render();
   };
 
@@ -553,7 +582,8 @@
     // Build fields payload (skip hidden/html/divider, flatten arrays)
     var fields = {};
     var def = this.data.definition;
-    var hidden = evalConditions(def.conditions, this.fieldValues);
+    var condResult = evalConditions(def.conditions, this.fieldValues);
+    var hidden = condResult.hidden;
 
     for (var id in def.fields) {
       if (hidden[id]) continue;

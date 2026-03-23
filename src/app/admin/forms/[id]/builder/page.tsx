@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import {
   DndContext,
   DragEndEvent,
@@ -11,7 +11,6 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
 import { BuilderProvider, useBuilder } from '@/lib/form-builder/context'
 import { getFieldType } from '@/lib/form-builder/field-types'
 import type { FormDefinition } from '@/lib/form-builder/types'
@@ -22,7 +21,7 @@ import { Canvas } from '@/components/builder/canvas'
 import { FieldSettings } from '@/components/builder/field-settings'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Check, Copy, Circle } from 'lucide-react'
 
 interface FormData {
   id: string
@@ -30,6 +29,7 @@ interface FormData {
   status: string
   definition: string | null
   clientId: string
+  embedKey: string
 }
 
 export default function FormBuilderPage() {
@@ -79,7 +79,7 @@ export default function FormBuilderPage() {
   )
 }
 
-function BuilderShell({ form }: { form: FormData }) {
+function BuilderShell({ form: initialForm }: { form: FormData }) {
   const {
     definition,
     activePageId,
@@ -87,10 +87,15 @@ function BuilderShell({ form }: { form: FormData }) {
     addField,
     moveRow,
     getDefinitionJSON,
+    markClean,
   } = useBuilder()
 
-  const router = useRouter()
+  const [form, setForm] = useState(initialForm)
   const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [saveFlash, setSaveFlash] = useState(false)
+  const [showEmbed, setShowEmbed] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -99,23 +104,53 @@ function BuilderShell({ form }: { form: FormData }) {
     })
   )
 
-  const handleSave = useCallback(
-    async (status?: 'draft' | 'published') => {
-      setSaving(true)
-      try {
-        const body: Record<string, string> = { definition: getDefinitionJSON() }
-        if (status) body.status = status
-        await fetch(`/api/forms/${form.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        })
-      } finally {
-        setSaving(false)
+  const embedSnippet = `<div id="ff-${form.embedKey}"></div><script src="https://formforge.io/embed.js" data-form="${form.embedKey}"></script>`
+
+  const handleSaveDraft = useCallback(async () => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/forms/${form.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ definition: getDefinitionJSON() }),
+      })
+      if (res.ok) {
+        markClean()
+        setSaveFlash(true)
+        setTimeout(() => setSaveFlash(false), 2000)
       }
-    },
-    [form.id, getDefinitionJSON]
-  )
+    } finally {
+      setSaving(false)
+    }
+  }, [form.id, getDefinitionJSON, markClean])
+
+  const handlePublish = useCallback(async () => {
+    setPublishing(true)
+    try {
+      const res = await fetch(`/api/forms/${form.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          definition: getDefinitionJSON(),
+          status: 'published',
+        }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setForm((prev) => ({ ...prev, status: updated.status || 'published' }))
+        markClean()
+        setShowEmbed(true)
+      }
+    } finally {
+      setPublishing(false)
+    }
+  }, [form.id, getDefinitionJSON, markClean])
+
+  const copyEmbed = useCallback(() => {
+    navigator.clipboard.writeText(embedSnippet)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [embedSnippet])
 
   function handleDragStart(event: DragStartEvent) {
     setDragActiveId(String(event.active.id))
@@ -174,26 +209,71 @@ function BuilderShell({ form }: { form: FormData }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {saveFlash && (
+              <span className="text-xs text-green-600 flex items-center gap-1">
+                <Check className="h-3 w-3" /> Saved
+              </span>
+            )}
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleSave('draft')}
-              disabled={saving}
+              onClick={handleSaveDraft}
+              disabled={saving || publishing}
             >
               {saving ? (
                 <Loader2 className="h-3 w-3 animate-spin mr-1" />
               ) : null}
-              Save Draft
+              {isDirty && !saving && (
+                <Circle className="h-2 w-2 fill-orange-400 text-orange-400 mr-1" />
+              )}
+              {saving ? 'Saving...' : 'Save Draft'}
             </Button>
             <Button
               size="sm"
-              onClick={() => handleSave('published')}
-              disabled={saving}
+              onClick={handlePublish}
+              disabled={saving || publishing}
             >
-              Publish
+              {publishing ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : null}
+              {publishing ? 'Publishing...' : 'Publish'}
             </Button>
           </div>
         </header>
+
+        {/* Embed code banner */}
+        {showEmbed && form.status === 'published' && (
+          <div className="border-b bg-green-50 dark:bg-green-950/30 px-4 py-3 flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                Form published. Embed it on your site:
+              </p>
+              <code className="text-xs bg-white dark:bg-black/20 border rounded px-2 py-1 block truncate">
+                {embedSnippet}
+              </code>
+            </div>
+            <div className="flex items-center gap-2 ml-4 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyEmbed}
+              >
+                {copied ? (
+                  <><Check className="h-3 w-3 mr-1" /> Copied</>
+                ) : (
+                  <><Copy className="h-3 w-3 mr-1" /> Copy</>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowEmbed(false)}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Three column layout */}
         <div className="flex flex-1 overflow-hidden">

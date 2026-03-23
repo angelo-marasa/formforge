@@ -48,6 +48,7 @@ interface BuilderActions {
   // Bulk operations
   setDefinition: (def: FormDefinition) => void
   getDefinitionJSON: () => string
+  markClean: () => void
 }
 
 type BuilderContextType = BuilderState & BuilderActions
@@ -275,6 +276,10 @@ export function BuilderProvider({
     [definition]
   )
 
+  const markClean = useCallback(() => {
+    setDirty(false)
+  }, [])
+
   return (
     <BuilderContext.Provider
       value={{
@@ -295,6 +300,7 @@ export function BuilderProvider({
         renamePage,
         setDefinition,
         getDefinitionJSON,
+        markClean,
       }}
     >
       {children}

@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react'
-import type { FormDefinition, FormField, FormRow, FormPage } from './types'
+import type { FormDefinition, FormField, FormRow, FormPage, FormCondition, FormConditionRule, FormConditionAction } from './types'
 import { createEmptyDefinition } from './types'
 import { ulid } from 'ulid'
 
@@ -44,6 +44,11 @@ interface BuilderActions {
   addPage: () => void
   removePage: (pageId: string) => void
   renamePage: (pageId: string, title: string) => void
+
+  // Condition operations
+  addCondition: () => string
+  updateCondition: (conditionId: string, updates: Partial<FormCondition>) => void
+  removeCondition: (conditionId: string) => void
 
   // Bulk operations
   setDefinition: (def: FormDefinition) => void
@@ -264,6 +269,45 @@ export function BuilderProvider({
     [updateDefinition]
   )
 
+  const addCondition = useCallback((): string => {
+    const conditionId = `cond_${ulid().toLowerCase().slice(-8)}`
+    updateDefinition((prev) => ({
+      ...prev,
+      conditions: [
+        ...prev.conditions,
+        {
+          id: conditionId,
+          logic: 'AND' as const,
+          rules: [{ fieldId: '', operator: 'equals' as const, value: '' }],
+          actions: [{ type: 'show' as const, targetFieldId: '' }],
+        },
+      ],
+    }))
+    return conditionId
+  }, [updateDefinition])
+
+  const updateCondition = useCallback(
+    (conditionId: string, updates: Partial<FormCondition>) => {
+      updateDefinition((prev) => ({
+        ...prev,
+        conditions: prev.conditions.map((c) =>
+          c.id === conditionId ? { ...c, ...updates } : c
+        ),
+      }))
+    },
+    [updateDefinition]
+  )
+
+  const removeCondition = useCallback(
+    (conditionId: string) => {
+      updateDefinition((prev) => ({
+        ...prev,
+        conditions: prev.conditions.filter((c) => c.id !== conditionId),
+      }))
+    },
+    [updateDefinition]
+  )
+
   const setDefinition = useCallback((def: FormDefinition) => {
     setDef(def)
     setActivePage(def.pages[0]?.id || 'page_1')
@@ -298,6 +342,9 @@ export function BuilderProvider({
         addPage,
         removePage,
         renamePage,
+        addCondition,
+        updateCondition,
+        removeCondition,
         setDefinition,
         getDefinitionJSON,
         markClean,

@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Trash2, Plus, GripVertical, ChevronDown, ChevronRight } from 'lucide-react'
+import { Trash2, Plus, GripVertical, ChevronDown, ChevronRight, Zap } from 'lucide-react'
+import { FieldConditionsSummary } from '@/components/builder/condition-editor'
 
 const LAYOUT_TYPES = ['html', 'divider', 'page_break']
 const CHOICE_TYPES = ['select', 'multi_select', 'radio', 'checkbox']
@@ -491,6 +492,16 @@ function FieldSettingsForm({
           )}
         </>
       )}
+
+      {/* Conditions */}
+      <Separator />
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1 text-xs font-semibold uppercase text-muted-foreground">
+          <Zap className="h-3 w-3" />
+          Conditions
+        </div>
+        <FieldConditionsSummary fieldId={fieldId} />
+      </div>
 
       {/* Delete field */}
       <Separator />

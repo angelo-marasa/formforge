@@ -21,7 +21,8 @@ import { Canvas } from '@/components/builder/canvas'
 import { FieldSettings } from '@/components/builder/field-settings'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Loader2, Check, Copy, Circle } from 'lucide-react'
+import { ConditionEditor } from '@/components/builder/condition-editor'
+import { Loader2, Check, Copy, Circle, Zap } from 'lucide-react'
 
 interface FormData {
   id: string
@@ -96,6 +97,7 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
   const [saveFlash, setSaveFlash] = useState(false)
   const [showEmbed, setShowEmbed] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showConditions, setShowConditions] = useState(false)
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -209,6 +211,19 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant={showConditions ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowConditions(!showConditions)}
+            >
+              <Zap className="h-3 w-3 mr-1" />
+              Conditions
+              {definition.conditions.length > 0 && (
+                <span className="ml-1 text-xs opacity-70">
+                  ({definition.conditions.length})
+                </span>
+              )}
+            </Button>
             {saveFlash && (
               <span className="text-xs text-green-600 flex items-center gap-1">
                 <Check className="h-3 w-3" /> Saved
@@ -286,8 +301,14 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
             <Canvas />
           </div>
 
-          {/* Right: Field Settings */}
-          <FieldSettings />
+          {/* Right: Field Settings or Conditions Panel */}
+          {showConditions ? (
+            <aside className="w-80 border-l bg-muted/20 overflow-hidden flex flex-col">
+              <ConditionEditor onClose={() => setShowConditions(false)} />
+            </aside>
+          ) : (
+            <FieldSettings />
+          )}
         </div>
       </div>
 

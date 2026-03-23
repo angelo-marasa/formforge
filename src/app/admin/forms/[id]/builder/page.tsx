@@ -1,54 +1,229 @@
-import { getForm } from '@/lib/db/queries/forms'
-import { getClient } from '@/lib/db/queries/clients'
-import { notFound } from 'next/navigation'
+'use client'
+
+import { useEffect, useState, useCallback } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { arrayMove } from '@dnd-kit/sortable'
+import { BuilderProvider, useBuilder } from '@/lib/form-builder/context'
+import { getFieldType } from '@/lib/form-builder/field-types'
+import type { FormDefinition } from '@/lib/form-builder/types'
+import { createEmptyDefinition } from '@/lib/form-builder/types'
+import { FieldPalette } from '@/components/builder/field-palette'
+import { PageTabs } from '@/components/builder/page-tabs'
+import { Canvas } from '@/components/builder/canvas'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { Loader2 } from 'lucide-react'
 
-export default async function FormBuilderPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const form = await getForm(id)
-  if (!form) notFound()
-  const client = await getClient(form.clientId)
+interface FormData {
+  id: string
+  name: string
+  status: string
+  definition: string | null
+  clientId: string
+}
+
+export default function FormBuilderPage() {
+  const params = useParams<{ id: string }>()
+  const [form, setForm] = useState<FormData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/forms/${params.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setForm(data)
+      }
+      setLoading(false)
+    }
+    load()
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!form) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-muted-foreground">Form not found</p>
+      </div>
+    )
+  }
+
+  let initialDefinition: FormDefinition
+  try {
+    initialDefinition = form.definition ? JSON.parse(form.definition) : createEmptyDefinition()
+  } catch {
+    initialDefinition = createEmptyDefinition()
+  }
 
   return (
-    <div className="flex flex-col h-screen">
-      <header className="h-14 border-b flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/admin/forms">
-            <Button variant="ghost" size="sm">&larr; Back</Button>
-          </Link>
-          <div>
-            <span className="font-semibold">{form.name}</span>
-            <span className="text-xs text-muted-foreground ml-2">{client?.name}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">Preview</Button>
-          <Button variant="outline" size="sm">Save Draft</Button>
-          <Button size="sm">Publish</Button>
-        </div>
-      </header>
+    <BuilderProvider initialDefinition={initialDefinition}>
+      <BuilderShell form={form} />
+    </BuilderProvider>
+  )
+}
 
-      <div className="flex flex-1 overflow-hidden">
-        <aside className="w-56 border-r bg-muted/20 p-4 overflow-y-auto">
-          <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">Fields</h3>
-          <p className="text-sm text-muted-foreground">Field palette goes here (Phase 2)</p>
-        </aside>
+function BuilderShell({ form }: { form: FormData }) {
+  const {
+    definition,
+    activePageId,
+    isDirty,
+    addField,
+    moveRow,
+    getDefinitionJSON,
+  } = useBuilder()
 
-        <section className="flex-1 bg-muted/5 p-6 overflow-y-auto">
-          <div className="max-w-2xl mx-auto">
-            <div className="rounded-lg border-2 border-dashed border-muted-foreground/20 p-12 text-center">
-              <p className="text-muted-foreground">Form canvas goes here (Phase 2)</p>
-              <p className="text-xs text-muted-foreground mt-2">Drag fields from the left panel</p>
+  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [dragActiveId, setDragActiveId] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  )
+
+  const handleSave = useCallback(
+    async (status?: 'draft' | 'published') => {
+      setSaving(true)
+      try {
+        const body: Record<string, string> = { definition: getDefinitionJSON() }
+        if (status) body.status = status
+        await fetch(`/api/forms/${form.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      } finally {
+        setSaving(false)
+      }
+    },
+    [form.id, getDefinitionJSON]
+  )
+
+  function handleDragStart(event: DragStartEvent) {
+    setDragActiveId(String(event.active.id))
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDragActiveId(null)
+    const { active, over } = event
+
+    if (!over) return
+
+    const activeData = active.data.current as Record<string, unknown> | undefined
+
+    // Palette item dropped on canvas
+    if (activeData?.type === 'palette-item' && over.id === 'canvas-drop-zone') {
+      const fieldTypeStr = activeData.fieldType as string
+      const fieldTypeDef = getFieldType(fieldTypeStr)
+      if (fieldTypeDef) {
+        addField(fieldTypeStr, fieldTypeDef.defaultConfig, activePageId)
+      }
+      return
+    }
+
+    // Row reordering within canvas
+    if (active.id !== over.id) {
+      const activePage = definition.pages.find((p) => p.id === activePageId)
+      if (!activePage) return
+      const oldIndex = activePage.rows.findIndex((r) => r.id === active.id)
+      const newIndex = activePage.rows.findIndex((r) => r.id === over.id)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        moveRow(activePageId, oldIndex, newIndex)
+      }
+    }
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex flex-col h-screen">
+        {/* Top bar */}
+        <header className="h-14 border-b flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <Link href="/admin/forms">
+              <Button variant="ghost" size="sm">
+                &larr; Back
+              </Button>
+            </Link>
+            <div>
+              <span className="font-semibold">{form.name}</span>
+              <span className="text-xs text-muted-foreground ml-2 capitalize">
+                {form.status}
+              </span>
             </div>
           </div>
-        </section>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSave('draft')}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : null}
+              Save Draft
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleSave('published')}
+              disabled={saving}
+            >
+              Publish
+            </Button>
+          </div>
+        </header>
 
-        <aside className="w-72 border-l bg-muted/20 p-4 overflow-y-auto">
-          <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">Settings</h3>
-          <p className="text-sm text-muted-foreground">Field settings go here (Phase 2)</p>
-        </aside>
+        {/* Three column layout */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left: Field Palette */}
+          <FieldPalette />
+
+          {/* Center: Page Tabs + Canvas */}
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <PageTabs />
+            <Canvas />
+          </div>
+
+          {/* Right: Settings placeholder */}
+          <aside className="w-72 border-l bg-muted/20 p-4 overflow-y-auto">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
+              Field Settings
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Select a field to edit its settings
+            </p>
+          </aside>
+        </div>
       </div>
-    </div>
+
+      <DragOverlay>
+        {dragActiveId ? (
+          <div className="px-3 py-2 rounded-md text-sm bg-background border shadow-lg opacity-80">
+            Dragging...
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   )
 }

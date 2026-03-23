@@ -11,7 +11,7 @@ function PaletteItem({ fieldType }: { fieldType: FieldTypeDefinition }) {
     data: { type: 'palette-item', fieldType: fieldType.type },
   })
 
-  const IconComponent = (Icons as Record<string, React.ComponentType<{ className?: string }>>)[fieldType.icon]
+  const IconComponent = (Icons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[fieldType.icon]
 
   return (
     <div

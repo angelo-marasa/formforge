@@ -7,6 +7,7 @@ import { TopBar } from '@/components/admin/top-bar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { FormFormDialog } from '@/components/admin/form-form-dialog'
+import { EmbedCodeDialog } from '@/components/admin/embed-code-dialog'
 
 interface Client {
   id: string
@@ -87,6 +88,9 @@ export default function ClientDetailPage() {
                   </td>
                   <td className="p-3 font-mono text-xs text-muted-foreground">{f.embedKey}</td>
                   <td className="p-3 text-right space-x-2">
+                    {f.status === 'published' && (
+                      <EmbedCodeDialog embedKey={f.embedKey} formName={f.name} />
+                    )}
                     <Link href={`/admin/forms/${f.id}/logs`}>
                       <Button variant="outline" size="sm">Logs</Button>
                     </Link>

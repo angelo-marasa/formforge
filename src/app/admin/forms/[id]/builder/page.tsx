@@ -22,13 +22,16 @@ import { FieldSettings } from '@/components/builder/field-settings'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ConditionEditor } from '@/components/builder/condition-editor'
-import { Loader2, Check, Copy, Circle, Zap } from 'lucide-react'
+import { FormPreview } from '@/components/builder/form-preview'
+import { StyleConfigPanel, DEFAULT_STYLE_CONFIG, type StyleConfigValues } from '@/components/builder/style-config'
+import { Loader2, Check, Copy, Circle, Zap, Paintbrush } from 'lucide-react'
 
 interface FormData {
   id: string
   name: string
   status: string
   definition: string | null
+  styleConfig: string | null
   clientId: string
   embedKey: string
 }
@@ -98,6 +101,15 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
   const [showEmbed, setShowEmbed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showConditions, setShowConditions] = useState(false)
+  const [showStyles, setShowStyles] = useState(false)
+  const [styleConfig, setStyleConfig] = useState<StyleConfigValues>(() => {
+    if (initialForm.styleConfig) {
+      try {
+        return { ...DEFAULT_STYLE_CONFIG, ...JSON.parse(initialForm.styleConfig) }
+      } catch { /* ignore */ }
+    }
+    return DEFAULT_STYLE_CONFIG
+  })
   const [dragActiveId, setDragActiveId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -114,7 +126,7 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
       const res = await fetch(`/api/forms/${form.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ definition: getDefinitionJSON() }),
+        body: JSON.stringify({ definition: getDefinitionJSON(), styleConfig: JSON.stringify(styleConfig) }),
       })
       if (res.ok) {
         markClean()
@@ -124,7 +136,7 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
     } finally {
       setSaving(false)
     }
-  }, [form.id, getDefinitionJSON, markClean])
+  }, [form.id, getDefinitionJSON, markClean, styleConfig])
 
   const handlePublish = useCallback(async () => {
     setPublishing(true)
@@ -134,6 +146,7 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           definition: getDefinitionJSON(),
+          styleConfig: JSON.stringify(styleConfig),
           status: 'published',
         }),
       })
@@ -146,7 +159,7 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
     } finally {
       setPublishing(false)
     }
-  }, [form.id, getDefinitionJSON, markClean])
+  }, [form.id, getDefinitionJSON, markClean, styleConfig])
 
   const copyEmbed = useCallback(() => {
     navigator.clipboard.writeText(embedSnippet)
@@ -211,10 +224,19 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <FormPreview styleConfig={styleConfig} />
+            <Button
+              variant={showStyles ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setShowStyles(!showStyles); if (!showStyles) setShowConditions(false) }}
+            >
+              <Paintbrush className="h-3 w-3 mr-1" />
+              Styles
+            </Button>
             <Button
               variant={showConditions ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setShowConditions(!showConditions)}
+              onClick={() => { setShowConditions(!showConditions); if (!showConditions) setShowStyles(false) }}
             >
               <Zap className="h-3 w-3 mr-1" />
               Conditions
@@ -301,10 +323,14 @@ function BuilderShell({ form: initialForm }: { form: FormData }) {
             <Canvas />
           </div>
 
-          {/* Right: Field Settings or Conditions Panel */}
+          {/* Right: Field Settings, Conditions, or Styles Panel */}
           {showConditions ? (
             <aside className="w-80 border-l bg-muted/20 overflow-hidden flex flex-col">
               <ConditionEditor onClose={() => setShowConditions(false)} />
+            </aside>
+          ) : showStyles ? (
+            <aside className="w-72 border-l bg-muted/20 p-4 overflow-y-auto">
+              <StyleConfigPanel value={styleConfig} onChange={setStyleConfig} />
             </aside>
           ) : (
             <FieldSettings />

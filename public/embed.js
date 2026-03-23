@@ -22,7 +22,7 @@
 
   // ── Inject styles ─────────────────────────────────────────────────────
   var css = [
-    '.ff-form { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 15px; color: #1a1a1a; line-height: 1.5; max-width: 100%; box-sizing: border-box; }',
+    '.ff-form { --ff-primary: #2563eb; --ff-bg: #ffffff; --ff-text: #1f2937; --ff-radius: 6px; --ff-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-family: var(--ff-font); font-size: 15px; color: var(--ff-text); line-height: 1.5; max-width: 100%; box-sizing: border-box; }',
     '.ff-form *, .ff-form *::before, .ff-form *::after { box-sizing: border-box; }',
     '.ff-page-title { font-size: 1.25em; font-weight: 600; margin: 0 0 16px 0; }',
     '.ff-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }',
@@ -30,26 +30,26 @@
     '.ff-field { margin-bottom: 4px; }',
     '.ff-label { display: block; font-size: 0.875em; font-weight: 500; margin-bottom: 4px; }',
     '.ff-required { color: #dc2626; margin-left: 2px; }',
-    '.ff-input, .ff-select, .ff-textarea { display: block; width: 100%; padding: 8px 10px; font-size: 0.9375em; font-family: inherit; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; color: #1a1a1a; outline: none; transition: border-color 0.15s; }',
-    '.ff-input:focus, .ff-select:focus, .ff-textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }',
+    '.ff-input, .ff-select, .ff-textarea { display: block; width: 100%; padding: 8px 10px; font-size: 0.9375em; font-family: inherit; border: 1px solid #d1d5db; border-radius: var(--ff-radius); background: #fff; color: var(--ff-text); outline: none; transition: border-color 0.15s; }',
+    '.ff-input:focus, .ff-select:focus, .ff-textarea:focus { border-color: var(--ff-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ff-primary) 15%, transparent); }',
     '.ff-input.ff-error-input, .ff-select.ff-error-input, .ff-textarea.ff-error-input { border-color: #dc2626; }',
     '.ff-textarea { min-height: 80px; resize: vertical; }',
     '.ff-error { color: #dc2626; font-size: 0.8em; margin-top: 3px; min-height: 0; }',
     '.ff-radio-group, .ff-checkbox-group { display: flex; flex-direction: column; gap: 6px; }',
     '.ff-radio-label, .ff-checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 0.9375em; cursor: pointer; }',
-    '.ff-radio-label input, .ff-checkbox-label input { margin: 0; accent-color: #2563eb; }',
+    '.ff-radio-label input, .ff-checkbox-label input { margin: 0; accent-color: var(--ff-primary); }',
     '.ff-select { appearance: auto; }',
     '.ff-multi-select { height: auto; min-height: 36px; }',
     '.ff-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; gap: 8px; }',
-    '.ff-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; font-size: 0.9375em; font-family: inherit; font-weight: 500; border: none; border-radius: 6px; cursor: pointer; transition: background 0.15s, opacity 0.15s; }',
-    '.ff-btn-primary { background: #2563eb; color: #fff; }',
-    '.ff-btn-primary:hover { background: #1d4ed8; }',
+    '.ff-btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; font-size: 0.9375em; font-family: inherit; font-weight: 500; border: none; border-radius: var(--ff-radius); cursor: pointer; transition: background 0.15s, opacity 0.15s; }',
+    '.ff-btn-primary { background: var(--ff-primary); color: #fff; }',
+    '.ff-btn-primary:hover { filter: brightness(0.9); }',
     '.ff-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }',
-    '.ff-btn-secondary { background: #e5e7eb; color: #374151; }',
+    '.ff-btn-secondary { background: #e5e7eb; color: var(--ff-text); border-radius: var(--ff-radius); }',
     '.ff-btn-secondary:hover { background: #d1d5db; }',
     '.ff-progress { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 0.8em; color: #6b7280; }',
     '.ff-progress-bar { flex: 1; height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden; }',
-    '.ff-progress-fill { height: 100%; background: #2563eb; border-radius: 2px; transition: width 0.3s; }',
+    '.ff-progress-fill { height: 100%; background: var(--ff-primary); border-radius: 2px; transition: width 0.3s; }',
     '.ff-html-block { margin-bottom: 4px; }',
     '.ff-divider { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }',
     '.ff-hidden { display: none !important; }',
@@ -209,6 +209,28 @@
     }
   };
 
+  // ── Style config helpers ─────────────────────────────────────────────
+  var radiusMap = { none: '0px', small: '4px', medium: '6px', large: '12px' };
+  var fontMap = {
+    'default': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    'serif': 'Georgia, "Times New Roman", serif',
+    'monospace': '"SF Mono", "Fira Code", monospace'
+  };
+
+  function applyStyleConfig(wrapper, styleConfig) {
+    if (!styleConfig) return;
+    var s = wrapper.style;
+    if (styleConfig.primaryColor) s.setProperty('--ff-primary', styleConfig.primaryColor);
+    if (styleConfig.backgroundColor) s.setProperty('--ff-bg', styleConfig.backgroundColor);
+    if (styleConfig.textColor) s.setProperty('--ff-text', styleConfig.textColor);
+    s.setProperty('--ff-radius', radiusMap[styleConfig.borderRadius] || '6px');
+    s.setProperty('--ff-font', fontMap[styleConfig.fontFamily] || fontMap['default']);
+
+    if (styleConfig.backgroundColor) wrapper.style.background = styleConfig.backgroundColor;
+    if (styleConfig.textColor) wrapper.style.color = styleConfig.textColor;
+    if (styleConfig.fontFamily) wrapper.style.fontFamily = fontMap[styleConfig.fontFamily] || fontMap['default'];
+  }
+
   FormForge.prototype.render = function() {
     var def = this.data.definition;
     if (!def || !def.pages || !def.pages.length) {
@@ -219,6 +241,9 @@
     var wrapper = el('div', { className: 'ff-form' });
     this.container.innerHTML = '';
     this.container.appendChild(wrapper);
+
+    // Apply style configuration
+    applyStyleConfig(wrapper, this.data.styleConfig);
 
     var pages = def.pages;
     var isMulti = pages.length > 1;

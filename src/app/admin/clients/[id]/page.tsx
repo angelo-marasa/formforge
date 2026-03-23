@@ -87,6 +87,9 @@ export default function ClientDetailPage() {
                   </td>
                   <td className="p-3 font-mono text-xs text-muted-foreground">{f.embedKey}</td>
                   <td className="p-3 text-right space-x-2">
+                    <Link href={`/admin/forms/${f.id}/logs`}>
+                      <Button variant="outline" size="sm">Logs</Button>
+                    </Link>
                     <Link href={`/admin/forms/${f.id}/builder`}>
                       <Button variant="outline" size="sm">Build</Button>
                     </Link>

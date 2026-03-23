@@ -50,7 +50,7 @@ export function ClientFormDialog({ client, trigger, onSave }: ClientFormDialogPr
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger as React.JSX.Element} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Client' : 'New Client'}</DialogTitle>

@@ -67,7 +67,7 @@ export function FormFormDialog({ form, trigger, onSave }: FormFormDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogTrigger render={trigger as React.JSX.Element} />
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Form' : 'New Form'}</DialogTitle>
